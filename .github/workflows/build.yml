@@ -44,8 +44,15 @@ jobs:
           echo "${{ secrets.GPG_PASSPHRASE }}" > /tmp/passphrase.txt
           chmod 600 /tmp/passphrase.txt
           
+          
+          - gpg --list-keys --with-keygrip
+          - echo "allow-preset-passphrase" >> ~/.gnupg/gpg-agent.conf
+          - gpg-connect-agent reloadagent /bye
+          - cat "${{ secrets.GPG_PASSPHRASE }}" | /usr/libexec/gpg-preset-passphrase --preset $GPG_KEY_GREP
+        
+
           # Import the GPG key
-          echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --batch --import
+          gpg --batch --import "${{ secrets.GPG_PRIVATE_KEY }}"
           
           # Configure GPG for non-interactive use
           mkdir -p ~/.gnupg

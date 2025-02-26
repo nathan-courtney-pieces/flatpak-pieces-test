@@ -17,6 +17,7 @@ jobs:
       - uses: actions/checkout@v3
 
       - name: Setup environment
+        shell: bash
         run: |
           echo "Setting up environment..."
           # Set up a user as the docker image comes with none
@@ -31,80 +32,52 @@ jobs:
           # Configure Git for Flatpak operations
           git config --global --add safe.directory /__w/flatpak-pieces-test/flatpak-pieces-test
           
-          # Install necessary dependencies including pinentry
-          apt-get update && apt-get install -y libxml2-utils pinentry-tty
-          
-          # Add Flathub repository
+          # Add Flathub repository for dependencies
           flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
           
-          # Set up GPG for signing in a non-interactive way
-          echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --import --batch
-          
-          # Configure GPG to use a specific pinentry and allow preset passphrase
-          mkdir -p ~/.gnupg
-          echo "pinentry-program /usr/bin/pinentry-tty" >> ~/.gnupg/gpg-agent.conf
-          echo "allow-loopback-pinentry" >> ~/.gnupg/gpg-agent.conf
+          # Set up GPG the GitLab way
+          gpg --list-keys --with-keygrip
           echo "allow-preset-passphrase" >> ~/.gnupg/gpg-agent.conf
-          
-          # Reload the agent with new configuration
           gpg-connect-agent reloadagent /bye
           
-          # If you have a passphrase, you can use it with pinentry or with the preset passphrase tool
-          if [ -n "${{ secrets.GPG_PASSPHRASE }}" ]; then
-            # Create a script to provide the passphrase
-            echo "#!/bin/bash" > /tmp/passphrase-script
-            echo "echo \"${{ secrets.GPG_PASSPHRASE }}\"" >> /tmp/passphrase-script
-            chmod +x /tmp/passphrase-script
-            echo "PINENTRY_USER_DATA=invisible" >> ~/.gnupg/gpg-agent.conf
-            export GPG_TTY=$(tty)
-            export PINENTRY_USER_DATA=invisible
-          fi
+          # Import the GPG key
+          echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --import --batch
+          
+          # Get the keygrip from the imported key
+          KEY_GRIP=$(gpg --with-keygrip --list-secret-keys ${{ secrets.GPG_KEY_ID }} | grep Keygrip | awk '{print $3}')
+          echo "Using keygrip: $KEY_GRIP"
+          
+          # Use preset-passphrase to set the passphrase
+          echo "${{ secrets.GPG_PASSPHRASE }}" | /usr/libexec/gpg-preset-passphrase --preset "$KEY_GRIP"
           
           # Check if shared-modules exists, if not clone it
           if [ ! -d "shared-modules" ]; then
             git clone https://github.com/flathub/shared-modules
           fi
 
-      # Build apps from their respective directories
       - name: Build Pieces OS
         env:
           APP_ID: com.pieces.os
+        shell: bash
         run: |
-          # Debug information
-          echo "Current directory: $(pwd)"
-          echo "Contents of apps/${APP_ID}:"
-          ls -la apps/${APP_ID}/
-          
-          # Export GPG TTY for the build process
-          export GPG_TTY=$(tty)
-          export PINENTRY_USER_DATA=invisible
-          
-          # Fix for icon warning - ensure icon name matches app ID
+          # Fix for icon warning
           cd apps/${APP_ID}
           if [ -f "pieces_server.png" ]; then
             cp pieces_server.png com.pieces.os.png
-            # Update desktop file to reference the new icon name
+            # Update desktop file
             if [ -f "pieces-os.desktop" ]; then
               sed -i 's/Icon=pieces_server/Icon=com.pieces.os/g' pieces-os.desktop
             fi
           fi
           cd -
           
-          # Build the app with verbose output
-          echo "Building the app..."
-          GPG_TTY=$(tty) flatpak-builder --verbose build --user --install-deps-from=flathub --gpg-sign=${{ secrets.GPG_KEY_ID }} --disable-rofiles-fuse --disable-updates --force-clean --repo=repo apps/${APP_ID}/${APP_ID}.yml || exit 1
-
-      # Comment out the second app build until the first one works
-      # - name: Build second app
-      #   env:
-      #     APP_ID: your.second.app
-      #   run: |
-      #     # Build the app
-      #     flatpak-builder --verbose build --user --install-deps-from=flathub --gpg-sign=${{ secrets.GPG_KEY_ID }} --disable-rofiles-fuse --disable-updates --force-clean --repo=repo apps/${APP_ID}/${APP_ID}.yaml
+          # Build with GPG signing
+          flatpak-builder --verbose --user --install-deps-from=flathub --gpg-sign=${{ secrets.GPG_KEY_ID }} --disable-rofiles-fuse --disable-updates --force-clean --repo=repo apps/${APP_ID}/${APP_ID}.yml
 
       - name: Update repository
+        shell: bash
         run: |
-          # Generate static deltas and prune repository
+          # Update repo with GPG signing
           flatpak build-update-repo --gpg-sign=${{ secrets.GPG_KEY_ID }} --generate-static-deltas --prune repo/
 
       - name: Deploy to GitHub Pages

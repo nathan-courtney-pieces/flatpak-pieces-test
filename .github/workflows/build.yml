@@ -77,7 +77,7 @@ jobs:
         shell: bash
         run: |
           # Build without GPG signing
-          flatpak-builder --verbose build --user --install-deps-from=flathub --disable-rofiles-fuse --disable-updates --force-clean --repo=repo apps/${APP_ID}/${APP_ID}.yml
+          flatpak-builder build --user --install-deps-from=flathub --disable-rofiles-fuse --disable-updates --force-clean --repo=repo apps/${APP_ID}/${APP_ID}.yml
 
       - name: Update repository without signing
         shell: bash
@@ -94,6 +94,6 @@ jobs:
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          personal_token: ${{ secrets.PAT_TOKEN }}
           publish_dir: ./repo
           force_orphan: true

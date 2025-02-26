@@ -11,7 +11,8 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-23.08
-    
+      options: --privileged
+
     steps:
       - uses: actions/checkout@v3
 
@@ -27,6 +28,12 @@ jobs:
           root:x:0:
           EOF
           
+          # Configure Git for Flatpak operations
+          git config --global --add safe.directory /__w/flatpak-pieces-test/flatpak-pieces-test
+          
+          # Install any necessary dependencies
+          apt-get update && apt-get install -y libxml2-utils
+          
           # Add Flathub repository
           flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
           
@@ -34,21 +41,32 @@ jobs:
           echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --import --batch
           echo "allow-preset-passphrase" >> ~/.gnupg/gpg-agent.conf
           gpg-connect-agent reloadagent /bye
+          
+          # Check if shared-modules exists, if not clone it
+          if [ ! -d "shared-modules" ]; then
+            git clone https://github.com/flathub/shared-modules
+          fi
 
       # Build apps from their respective directories
       - name: Build Pieces OS
         env:
           APP_ID: com.pieces.os
         run: |
-          # Build the app
-          flatpak-builder build --user --install-deps-from=flathub --gpg-sign=${{ secrets.GPG_KEY_ID }} --disable-rofiles-fuse --disable-updates --force-clean --repo=repo apps/${APP_ID}/${APP_ID}.yml
+          # Debug information
+          echo "Current directory: $(pwd)"
+          echo "Contents of apps/${APP_ID}:"
+          ls -la apps/${APP_ID}/
+          
+          # Build the app with verbose output
+          flatpak-builder --verbose build --user --install-deps-from=flathub --gpg-sign=${{ secrets.GPG_KEY_ID }} --disable-rofiles-fuse --disable-updates --force-clean --repo=repo apps/${APP_ID}/${APP_ID}.yaml
 
-#      - name: Build second app
-#        env:
-#          APP_ID: your.second.app
-#        run: |
-#          # Build the app
-#          flatpak-builder build --user --install-deps-from=flathub --gpg-sign=${{ secrets.GPG_KEY_ID }} --disable-rofiles-fuse --disable-updates --force-clean --repo=repo apps/${APP_ID}/${APP_ID}.yaml
+      # Comment out the second app build until the first one works
+      # - name: Build second app
+      #   env:
+      #     APP_ID: your.second.app
+      #   run: |
+      #     # Build the app
+      #     flatpak-builder --verbose build --user --install-deps-from=flathub --gpg-sign=${{ secrets.GPG_KEY_ID }} --disable-rofiles-fuse --disable-updates --force-clean --repo=repo apps/${APP_ID}/${APP_ID}.yaml
 
       - name: Update repository
         run: |

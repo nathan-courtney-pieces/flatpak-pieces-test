@@ -35,50 +35,69 @@ jobs:
           # Add Flathub repository for dependencies
           flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
           
-          # Set up GPG the GitLab way
-          gpg --list-keys --with-keygrip
-          echo "allow-preset-passphrase" >> ~/.gnupg/gpg-agent.conf
-          gpg-connect-agent reloadagent /bye
-          
-          # Import the GPG key
-          echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --import --batch
-          
-          # Get the keygrip from the imported key
-          KEY_GRIP=$(gpg --with-keygrip --list-secret-keys ${{ secrets.GPG_KEY_ID }} | grep Keygrip | awk '{print $3}')
-          echo "Using keygrip: $KEY_GRIP"
-          
-          # Use preset-passphrase to set the passphrase
-          echo "${{ secrets.GPG_PASSPHRASE }}" | /usr/libexec/gpg-preset-passphrase --preset "$KEY_GRIP"
-          
-          # Check if shared-modules exists, if not clone it
+          # Clone shared-modules if needed
           if [ ! -d "shared-modules" ]; then
             git clone https://github.com/flathub/shared-modules
           fi
+          
+          # Create a script to sign with GPG non-interactively
+          cat > /usr/local/bin/flatpak-sign << 'EOF'
+          #!/bin/bash
+          # Bypass need for passphrase by using loopback pinentry
+          exec gpg --batch --yes --passphrase-file /tmp/passphrase.txt --pinentry-mode loopback --detach-sign "$@"
+          EOF
+          
+          chmod +x /usr/local/bin/flatpak-sign
+          
+          # Save passphrase to a file (will be deleted later)
+          echo "${{ secrets.GPG_PASSPHRASE }}" > /tmp/passphrase.txt
+          chmod 600 /tmp/passphrase.txt
+          
+          # Import the GPG key
+          echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --batch --import
+          
+          # Set trust level for the key
+          echo -e "5\ny\n" | gpg --command-fd 0 --no-tty --batch --yes --edit-key ${{ secrets.GPG_KEY_ID }} trust
+
+      - name: Fix icon issues
+        env:
+          APP_ID: com.pieces.os
+        shell: bash
+        run: |
+          cd apps/${APP_ID}
+          
+          # Fix icon naming
+          if [ -f "pieces_server.png" ]; then
+            cp pieces_server.png ${APP_ID}.png
+          
+            # Update desktop file
+            if [ -f "pieces-os.desktop" ]; then
+              sed -i "s/Icon=pieces_server/Icon=${APP_ID}/g" pieces-os.desktop
+            fi
+          fi
+          
+          cd -
 
       - name: Build Pieces OS
         env:
           APP_ID: com.pieces.os
         shell: bash
         run: |
-          # Fix for icon warning
-          cd apps/${APP_ID}
-          if [ -f "pieces_server.png" ]; then
-            cp pieces_server.png com.pieces.os.png
-            # Update desktop file
-            if [ -f "pieces-os.desktop" ]; then
-              sed -i 's/Icon=pieces_server/Icon=com.pieces.os/g' pieces-os.desktop
-            fi
-          fi
-          cd -
-          
-          # Build with GPG signing
-          flatpak-builder --verbose --user --install-deps-from=flathub --gpg-sign=${{ secrets.GPG_KEY_ID }} --disable-rofiles-fuse --disable-updates --force-clean --repo=repo apps/${APP_ID}/${APP_ID}.yml
+          # Build with custom signing script
+          SIGN_WITH=/usr/local/bin/flatpak-sign flatpak-builder --verbose --user --install-deps-from=flathub --gpg-sign=${{ secrets.GPG_KEY_ID }} --disable-rofiles-fuse --disable-updates --force-clean --repo=repo apps/${APP_ID}/${APP_ID}.yml
 
       - name: Update repository
         shell: bash
         run: |
-          # Update repo with GPG signing
-          flatpak build-update-repo --gpg-sign=${{ secrets.GPG_KEY_ID }} --generate-static-deltas --prune repo/
+          # Update repo with custom signing script
+          SIGN_WITH=/usr/local/bin/flatpak-sign flatpak build-update-repo --gpg-sign=${{ secrets.GPG_KEY_ID }} --generate-static-deltas --prune repo/
+
+      - name: Clean up sensitive information
+        if: always()
+        shell: bash
+        run: |
+          # Remove the passphrase file
+          rm -f /tmp/passphrase.txt
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3

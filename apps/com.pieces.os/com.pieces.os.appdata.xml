@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop">
+    <id>com.pieces.os</id>
+    <name>Pieces OS</name>
+    <project_license>LicenseRef-proprietary</project_license>
+    <developer_name>Pieces</developer_name>
+    <summary>Local database and server that enables Pieces to run quickly, offline and inside your IDE</summary>
+    <metadata_license>CC0-1.0</metadata_license>
+    <url type="homepage">https://pieces.app</url>
+    <url type="help">https://docs.pieces.app/</url>
+    <description>
+        <p>Local database and server that enables Pieces to run quickly, offline and inside your IDE. Pieces OS is the core server component that powers the Pieces developer productivity suite.</p>
+        <p>Features:</p>
+        <ul>
+            <li>Local-first architecture for fast performance</li>
+            <li>Offline functionality</li>
+            <li>IDE integration support</li>
+            <li>Secure data storage</li>
+        </ul>
+    </description>
+    <categories>
+        <category>Development</category>
+        <category>Utility</category>
+    </categories>
+    <releases>
+        <release version="11.0.4" date="2025-01-16"/>
+    </releases>
+    <content_rating type="oars-1.0">
+        <content_attribute id="social-info">none</content_attribute>
+        <content_attribute id="social-audio">none</content_attribute>
+        <content_attribute id="social-location">none</content_attribute>
+        <content_attribute id="social-contacts">none</content_attribute>
+        <content_attribute id="money-purchasing">none</content_attribute>
+    </content_rating>
+</component>

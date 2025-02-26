@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Pieces OS
+Comment=Local database and server that enables Pieces to run quickly, offline and inside your IDE.
+Exec=pieces-os.sh %u
+Icon=pieces_server.png
+Terminal=false
+Type=Application
+Categories=Development
+MimeType=x-scheme-handler/pieces;

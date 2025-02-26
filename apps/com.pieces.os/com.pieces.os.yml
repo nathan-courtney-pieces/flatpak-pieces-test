@@ -1,0 +1,56 @@
+app-id: com.pieces.os
+runtime: org.gnome.Platform
+runtime-version: '47'
+sdk: org.gnome.Sdk
+command: pieces-os.sh
+tags:
+  - proprietary
+separate-locales: false
+finish-args:
+  - --share=network
+  - --socket=fallback-x11
+  - --share=ipc
+  - --socket=wayland
+  - --filesystem=xdg-documents
+  - --device=dri
+  - --talk-name=com.pieces.os
+  - --own-name=com.pieces.os
+  - --socket=session-bus
+  - --talk-name=org.kde.StatusNotifierWatcher
+  - --talk-name=org.ayatana.indicator.application
+  - --talk-name=org.freedesktop.Notifications
+  - --filesystem=/dev/log
+  - --filesystem=/var/run/syslog
+  - --filesystem=xdg-desktop
+  - --filesystem=xdg-download
+modules:
+  - ../../shared-modules/intltool/intltool-0.51.json
+  - ../../shared-modules/libcanberra/libcanberra.json
+  - ../../shared-modules/libappindicator/libappindicator-gtk3-12.10.json
+  - name: pieces-os
+    buildsystem: simple
+    only-arches:
+      - x86_64
+    build-commands:
+      - install -D os_server /app/bin/os_server
+      - install -Dm644 com.pieces.os.appdata.xml ${FLATPAK_DEST}/share/appdata/${FLATPAK_ID}.appdata.xml
+      - install -Dm644 pieces_server.png ${FLATPAK_DEST}/share/icons/hicolor/512x512/apps/${FLATPAK_ID}.png
+      - install -Dm644 pieces-os.desktop ${FLATPAK_DEST}/share/applications/${FLATPAK_ID}.desktop
+      - mv pieces-os.sh /app/bin/pieces-os.sh
+      - cp -ra data /app/bin/data
+      - cp -ra lib /app/bin/lib
+      - mkdir /app/bin/bin
+      - cp -ra binaries /app/bin/bin/binaries
+    sources:
+      - type: archive
+        url: https://storage.googleapis.com/app-releases-production/os_server/203gha/Pieces-OS-11.1.2.tar.gz
+        sha256: 22db0b9ac12f901df5e71d95067f1a4e3b92e180b7dc63fd0b6b3d8e827aec5d
+        dest-filename: Pieces-OS.tar.gz
+      - type: file
+        path: pieces_server.png
+      - type: file
+        path: pieces-os.desktop
+      - type: file
+        path: com.pieces.os.appdata.xml
+      - type: file
+        path: pieces-os.sh

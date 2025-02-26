@@ -96,7 +96,7 @@ jobs:
           
           # Try to sign with environment variable passphrase
           echo "Building the app..."
-          echo "$PASSPHRASE" | flatpak-builder --verbose --user --install-deps-from=flathub --gpg-sign=${{ secrets.GPG_KEY_ID }} --gpg-homedir=$GNUPGHOME --disable-rofiles-fuse --disable-updates --force-clean --repo=repo apps/${APP_ID}/${APP_ID}.yml
+          flatpak-builder --verbose --user --install-deps-from=flathub --gpg-sign=${{ secrets.GPG_KEY_ID }} --gpg-homedir=$GNUPGHOME --disable-rofiles-fuse --disable-updates --force-clean --repo=repo apps/${APP_ID}/${APP_ID}.yml
 
       - name: Update repository
         env:

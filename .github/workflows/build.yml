@@ -39,31 +39,6 @@ jobs:
           if [ ! -d "shared-modules" ]; then
             git clone https://github.com/flathub/shared-modules
           fi
-          
-          # Save passphrase to a file (will be deleted later)
-          echo "${{ secrets.GPG_PASSPHRASE }}" > /tmp/passphrase.txt
-          chmod 600 /tmp/passphrase.txt
-          
-          
-          gpg --list-keys --with-keygrip
-          echo "allow-preset-passphrase" >> ~/.gnupg/gpg-agent.conf
-          gpg-connect-agent reloadagent /bye
-          cat "${{ secrets.GPG_PASSPHRASE }}" | /usr/libexec/gpg-preset-passphrase --preset $GPG_KEY_GREP
-        
-
-          # Import the GPG key
-          gpg --batch --import "${{ secrets.GPG_PRIVATE_KEY }}"
-          
-          # Configure GPG for non-interactive use
-          mkdir -p ~/.gnupg
-          cat > ~/.gnupg/gpg.conf << EOF
-          batch
-          no-tty
-          pinentry-mode loopback
-          EOF
-          
-          # Set trust level for the key
-          echo -e "5\ny\n" | gpg --command-fd 0 --no-tty --batch --edit-key ${{ secrets.GPG_KEY_ID }} trust
 
       - name: Fix icon issues
         env:
@@ -84,45 +59,19 @@ jobs:
           
           cd -
 
-      # Try to build without custom SIGN_WITH script
-      - name: Build Pieces OS
+      - name: Build Pieces OS without signing
         env:
           APP_ID: com.pieces.os
-          GPG_TTY: /dev/null
         shell: bash
         run: |
-          # Export PASSPHRASE env variable for GPG
-          export GNUPGHOME=~/.gnupg
-          export GPG_TTY=$(tty || echo /dev/null)
-          export PASSPHRASE="${{ secrets.GPG_PASSPHRASE }}"
-          
-          # Configure GPG agent to use passphrase
-          echo "allow-loopback-pinentry" >> ~/.gnupg/gpg-agent.conf
-          echo "pinentry-mode loopback" >> ~/.gnupg/gpg.conf
-          gpgconf --reload gpg-agent
-          
-          # Try to sign with environment variable passphrase
-          echo "Building the app..."
-          echo "$PASSPHRASE" | flatpak-builder --verbose build --user --install-deps-from=flathub --gpg-sign=${{ secrets.GPG_KEY_ID }} --disable-rofiles-fuse --disable-updates --force-clean --repo=repo apps/${APP_ID}/${APP_ID}.yml
-      - name: Update repository
-        env:
-          GPG_TTY: /dev/null
-        shell: bash
-        run: |
-          # Export PASSPHRASE env variable for GPG
-          export GNUPGHOME=~/.gnupg
-          export GPG_TTY=$(tty || echo /dev/null)
-          export PASSPHRASE="${{ secrets.GPG_PASSPHRASE }}"
-          
-          # Update repo with GPG signing
-          echo "$PASSPHRASE" | flatpak build-update-repo --gpg-sign=${{ secrets.GPG_KEY_ID }} --gpg-homedir=$GNUPGHOME --generate-static-deltas --prune repo/
+          # Build without GPG signing
+          flatpak-builder --verbose build --user --install-deps-from=flathub --disable-rofiles-fuse --disable-updates --force-clean --repo=repo apps/${APP_ID}/${APP_ID}.yaml
 
-      - name: Clean up sensitive information
-        if: always()
+      - name: Update repository without signing
         shell: bash
         run: |
-          # Remove the passphrase file
-          rm -f /tmp/passphrase.txt
+          # Update repo without signing
+          flatpak build-update-repo repo/
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3

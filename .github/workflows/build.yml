@@ -31,16 +31,34 @@ jobs:
           # Configure Git for Flatpak operations
           git config --global --add safe.directory /__w/flatpak-pieces-test/flatpak-pieces-test
           
-          # Install any necessary dependencies
-          apt-get update && apt-get install -y libxml2-utils
+          # Install necessary dependencies including pinentry
+          apt-get update && apt-get install -y libxml2-utils pinentry-tty
           
           # Add Flathub repository
           flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
           
-          # Set up GPG for signing
+          # Set up GPG for signing in a non-interactive way
           echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --import --batch
+          
+          # Configure GPG to use a specific pinentry and allow preset passphrase
+          mkdir -p ~/.gnupg
+          echo "pinentry-program /usr/bin/pinentry-tty" >> ~/.gnupg/gpg-agent.conf
+          echo "allow-loopback-pinentry" >> ~/.gnupg/gpg-agent.conf
           echo "allow-preset-passphrase" >> ~/.gnupg/gpg-agent.conf
+          
+          # Reload the agent with new configuration
           gpg-connect-agent reloadagent /bye
+          
+          # If you have a passphrase, you can use it with pinentry or with the preset passphrase tool
+          if [ -n "${{ secrets.GPG_PASSPHRASE }}" ]; then
+            # Create a script to provide the passphrase
+            echo "#!/bin/bash" > /tmp/passphrase-script
+            echo "echo \"${{ secrets.GPG_PASSPHRASE }}\"" >> /tmp/passphrase-script
+            chmod +x /tmp/passphrase-script
+            echo "PINENTRY_USER_DATA=invisible" >> ~/.gnupg/gpg-agent.conf
+            export GPG_TTY=$(tty)
+            export PINENTRY_USER_DATA=invisible
+          fi
           
           # Check if shared-modules exists, if not clone it
           if [ ! -d "shared-modules" ]; then
@@ -57,8 +75,24 @@ jobs:
           echo "Contents of apps/${APP_ID}:"
           ls -la apps/${APP_ID}/
           
+          # Export GPG TTY for the build process
+          export GPG_TTY=$(tty)
+          export PINENTRY_USER_DATA=invisible
+          
+          # Fix for icon warning - ensure icon name matches app ID
+          cd apps/${APP_ID}
+          if [ -f "pieces_server.png" ]; then
+            cp pieces_server.png com.pieces.os.png
+            # Update desktop file to reference the new icon name
+            if [ -f "pieces-os.desktop" ]; then
+              sed -i 's/Icon=pieces_server/Icon=com.pieces.os/g' pieces-os.desktop
+            fi
+          fi
+          cd -
+          
           # Build the app with verbose output
-          flatpak-builder --verbose build --user --install-deps-from=flathub --gpg-sign=${{ secrets.GPG_KEY_ID }} --disable-rofiles-fuse --disable-updates --force-clean --repo=repo apps/${APP_ID}/${APP_ID}.yml
+          echo "Building the app..."
+          GPG_TTY=$(tty) flatpak-builder --verbose build --user --install-deps-from=flathub --gpg-sign=${{ secrets.GPG_KEY_ID }} --disable-rofiles-fuse --disable-updates --force-clean --repo=repo apps/${APP_ID}/${APP_ID}.yml || exit 1
 
       # Comment out the second app build until the first one works
       # - name: Build second app
